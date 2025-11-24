@@ -18,6 +18,46 @@ const getFileExtension = (filename: string) => {
     return filename.includes('.') ? filename.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg';
 };
 
+// Helper INTELIGENTE para escrita no banco
+// Tenta salvar com todos os campos. Se der erro de coluna inexistente (ex: caption),
+// remove o campo problemático e tenta de novo.
+const safeSupabaseWrite = async (table: string, payload: any, id?: string) => {
+    const currentPayload = { ...payload };
+    
+    // Função auxiliar para executar a query
+    const executeQuery = async (p: any) => {
+        if (id) {
+            return await supabase.from(table).update(p).eq('id', id).select().single();
+        } else {
+            return await supabase.from(table).insert(p).select().single();
+        }
+    };
+
+    // Tentativa 1: Payload Completo
+    let { data, error } = await executeQuery(currentPayload);
+
+    // Verificação de erro específico: Coluna não encontrada
+    const isColumnError = error && (
+        error.message?.includes('caption') || 
+        error.message?.includes('column') || 
+        error.message?.includes('schema cache')
+    );
+
+    if (isColumnError) {
+        console.warn(`[Auto-Fix] A tabela '${table}' não tem a coluna 'caption'. Salvando sem ela.`);
+        
+        // Remove o campo caption e tenta novamente
+        delete currentPayload.caption;
+        
+        const retry = await executeQuery(currentPayload);
+        data = retry.data;
+        error = retry.error;
+    }
+
+    if (error) throw error;
+    return data;
+};
+
 export const dbService = {
   
   // --- SEED (POPULAR BANCO) ---
@@ -31,7 +71,7 @@ export const dbService = {
           const { data } = await supabase.from('quotes').select('id').eq('quote', q.quote).single();
           
           if (!data) {
-              const { error } = await supabase.from('quotes').insert({
+              const payload = {
                   category: q.category || 'Inspiração',
                   quote: q.quote,
                   author_name: q.authorName,
@@ -43,8 +83,15 @@ export const dbService = {
                   footer_logo_url: q.footerLogoUrl || null,
                   website_url: q.websiteUrl || 'www.metarh.com.br',
                   caption: null
-              });
-              if (!error) addedQuotes++;
+              };
+
+              // Usamos safeSupabaseWrite mesmo no seed para evitar crash
+              try {
+                  await safeSupabaseWrite('quotes', payload);
+                  addedQuotes++;
+              } catch (e) {
+                  console.error("Erro no seed de quotes:", e);
+              }
           }
       }
 
@@ -52,7 +99,7 @@ export const dbService = {
       for (const b of SEED_BOOKS) {
            const { data } = await supabase.from('books').select('id').eq('book_title', b.bookTitle).single();
            if (!data) {
-               const { error } = await supabase.from('books').insert({
+               const payload = {
                   category: b.category || 'Desenvolvimento',
                   book_title: b.bookTitle,
                   book_author: b.bookAuthor,
@@ -61,8 +108,14 @@ export const dbService = {
                   social_handle: b.socialHandle || '@metarhconsultoria',
                   footer_logo_url: b.footerLogoUrl || null,
                   caption: null
-               });
-               if (!error) addedBooks++;
+               };
+
+               try {
+                  await safeSupabaseWrite('books', payload);
+                  addedBooks++;
+               } catch (e) {
+                  console.error("Erro no seed de books:", e);
+               }
            }
       }
 
@@ -148,16 +201,7 @@ export const dbService = {
         caption: data.caption || null
     };
 
-    let result;
-    if (data.id) {
-        const { data: updated, error } = await supabase.from('quotes').update(dbPayload).eq('id', data.id).select().single();
-        if (error) throw error;
-        result = updated;
-    } else {
-        const { data: inserted, error } = await supabase.from('quotes').insert(dbPayload).select().single();
-        if (error) throw error;
-        result = inserted;
-    }
+    const result = await safeSupabaseWrite('quotes', dbPayload, data.id);
 
     return {
         ...data,
@@ -263,16 +307,7 @@ export const dbService = {
         caption: data.caption || null
     };
 
-    let result;
-    if (data.id) {
-        const { data: updated, error } = await supabase.from('books').update(dbPayload).eq('id', data.id).select().single();
-        if (error) throw error;
-        result = updated;
-    } else {
-        const { data: inserted, error } = await supabase.from('books').insert(dbPayload).select().single();
-        if (error) throw error;
-        result = inserted;
-    }
+    const result = await safeSupabaseWrite('books', dbPayload, data.id);
 
     return { 
         ...data, 
@@ -380,16 +415,7 @@ export const dbService = {
         caption: data.caption || null
     };
 
-    let result;
-    if (data.id) {
-        const { data: updated, error } = await supabase.from('jobs').update(dbPayload).eq('id', data.id).select().single();
-        if (error) throw error;
-        result = updated;
-    } else {
-        const { data: inserted, error } = await supabase.from('jobs').insert(dbPayload).select().single();
-        if (error) throw error;
-        result = inserted;
-    }
+    const result = await safeSupabaseWrite('jobs', dbPayload, data.id);
 
     return { 
         ...data, 
