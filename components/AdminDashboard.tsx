@@ -133,6 +133,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         return item.imageUrl;
     };
 
+    const getImageFieldName = () => {
+        if (activeTab === 'quotes') return 'authorImage';
+        if (activeTab === 'books') return 'coverImage';
+        return 'imageUrl';
+    };
+
     const labelClass = "text-xs font-bold text-gray-500 uppercase block mb-1";
     const inputClass = "w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none transition";
 
@@ -317,8 +323,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                 <div className="flex-1 space-y-4">
                                     <p className="text-sm text-gray-500 leading-relaxed">
                                         Clique na imagem ao lado para fazer upload de um novo arquivo.
-                                        A imagem será substituída no banco de dados ao salvar.
                                     </p>
+                                    
+                                    {/* URL Input Fallback */}
+                                    <div>
+                                         <label className={labelClass}>Ou cole a URL da imagem aqui</label>
+                                         <input 
+                                            type="text" 
+                                            name={getImageFieldName()} 
+                                            value={editFormData[getImageFieldName()] || ''} 
+                                            onChange={handleFormChange} 
+                                            className={inputClass} 
+                                            placeholder="https://exemplo.com/imagem.jpg"
+                                        />
+                                        <p className="text-xs text-gray-400 mt-1">Útil se o upload falhar devido a permissões de servidor.</p>
+                                    </div>
+
                                     {activeTab === 'quotes' && (
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>

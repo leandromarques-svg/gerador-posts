@@ -120,7 +120,10 @@ export const dbService = {
 
             if (uploadError) {
                 console.error("Supabase Storage Error:", uploadError);
-                throw new Error(`Erro ao subir imagem: ${uploadError.message} (Verifique as permissões do Bucket 'images')`);
+                if (uploadError.message.includes('row-level security')) {
+                     throw new Error(`ERRO DE PERMISSÃO: O Bucket 'images' no Supabase precisa de uma Policy para permitir INSERT/UPLOAD público.`);
+                }
+                throw new Error(`Erro ao subir imagem: ${uploadError.message}`);
             }
 
             const { data: publicUrlData } = supabase.storage.from('images').getPublicUrl(fileName);
@@ -235,6 +238,9 @@ export const dbService = {
 
             if (uploadError) {
                 console.error("Supabase Storage Error:", uploadError);
+                if (uploadError.message.includes('row-level security')) {
+                     throw new Error(`ERRO DE PERMISSÃO: O Bucket 'images' no Supabase precisa de uma Policy para permitir INSERT/UPLOAD público.`);
+                }
                 throw new Error(`Erro ao subir imagem: ${uploadError.message}`);
             }
 
@@ -346,6 +352,9 @@ export const dbService = {
 
             if (uploadError) {
                 console.error("Supabase Storage Error:", uploadError);
+                if (uploadError.message.includes('row-level security')) {
+                     throw new Error(`ERRO DE PERMISSÃO: O Bucket 'images' no Supabase precisa de uma Policy para permitir INSERT/UPLOAD público.`);
+                }
                 throw new Error(`Erro ao subir imagem: ${uploadError.message}`);
             }
 
