@@ -3,10 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     Search, Edit2, Trash2, X, Save, Upload, 
     Quote, BookOpen, Briefcase, Loader2, Image as ImageIcon,
-    AlertCircle
+    AlertCircle, Plus, FileJson, CheckCircle
 } from 'lucide-react';
 import { dbService } from '../services/databaseService';
-import { QuoteData, BookData, JobData, QUOTE_CATEGORIES, BOOK_CATEGORIES } from '../types';
+import { QuoteData, BookData, JobData, QUOTE_CATEGORIES, BOOK_CATEGORIES, INITIAL_QUOTE_DATA, INITIAL_BOOK_DATA, INITIAL_JOB_DATA } from '../types';
 
 type AdminTab = 'quotes' | 'books' | 'jobs';
 
@@ -26,6 +26,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     const [editFile, setEditFile] = useState<File | null>(null);
     const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Estados para Importação JSON
+    const [isImporting, setIsImporting] = useState(false);
+    const [importJsonText, setImportJsonText] = useState('');
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +73,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         }
     });
 
-    // Ações de Edição
+    // Ações de Criação / Edição
+    const handleNewClick = () => {
+        let initialData = {};
+        if (activeTab === 'quotes') initialData = { ...INITIAL_QUOTE_DATA, id: undefined, caption: '' };
+        else if (activeTab === 'books') initialData = { ...INITIAL_BOOK_DATA, id: undefined, caption: '' };
+        else initialData = { ...INITIAL_JOB_DATA, id: undefined, caption: '' };
+        
+        setEditingItem({ id: 'new' }); // Placeholder ID for new item
+        setEditFormData(initialData);
+        setEditFile(null);
+        setEditPreviewUrl(null);
+    };
+
     const handleEditClick = (item: any) => {
         setEditingItem(item);
         setEditFormData({ ...item });
@@ -123,6 +139,61 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             setItems(prev => prev.filter(i => i.id !== id));
         } catch (error) {
             console.error("Erro ao excluir:", error);
+        }
+    };
+
+    // Ações de Importação (JSON)
+    const handleImportClick = () => {
+        setIsImporting(true);
+        setImportJsonText('');
+    };
+
+    const executeImport = async () => {
+        if (!importJsonText) return;
+        setIsSaving(true);
+        try {
+            const data = JSON.parse(importJsonText);
+            if (!Array.isArray(data)) throw new Error("O JSON deve ser uma lista (Array) de objetos: [...]");
+
+            let successCount = 0;
+            
+            for (const item of data) {
+                 // Sanitização básica e preenchimento de defaults se necessário
+                 if (activeTab === 'quotes') {
+                     const payload = {
+                         category: item.category || 'Inspiração',
+                         quote: item.quote || 'Sem texto',
+                         authorName: item.authorName || 'Desconhecido',
+                         authorRole: item.authorRole || '',
+                         authorImage: item.authorImage || null,
+                         socialHandle: item.socialHandle || '@metarhconsultoria',
+                         caption: item.caption || ''
+                     };
+                     await dbService.saveQuote(payload as QuoteData);
+                 } else if (activeTab === 'books') {
+                     const payload = {
+                         category: item.category || 'Desenvolvimento',
+                         bookTitle: item.bookTitle || 'Sem Título',
+                         bookAuthor: item.bookAuthor || 'Desconhecido',
+                         review: item.review || '',
+                         coverImage: item.coverImage || null,
+                         socialHandle: item.socialHandle || '@metarhconsultoria',
+                         caption: item.caption || ''
+                     };
+                     await dbService.saveBook(payload as BookData);
+                 }
+                 // Não implementado importação em massa para vagas (Jobs) por complexidade
+                 successCount++;
+            }
+            
+            alert(`Importação concluída! ${successCount} itens adicionados.`);
+            setIsImporting(false);
+            fetchData();
+
+        } catch (e: any) {
+            alert("Erro no JSON: " + e.message);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -187,8 +258,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 <div className="flex-1 flex flex-col bg-gray-50 p-8 overflow-hidden">
                     
                     {/* Toolbar */}
-                    <div className="flex justify-between items-center mb-6 shrink-0">
-                        <div className="relative w-96">
+                    <div className="flex justify-between items-center mb-6 shrink-0 gap-4">
+                        <div className="relative flex-1 max-w-md">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                             <input 
                                 type="text" 
@@ -198,8 +269,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none shadow-sm"
                             />
                         </div>
-                        <div className="text-sm text-gray-500 font-medium">
-                            {filteredItems.length} registros encontrados
+                        
+                        <div className="flex items-center gap-2">
+                             {/* Botão de Importar JSON */}
+                            {activeTab !== 'jobs' && (
+                                <button 
+                                    onClick={handleImportClick}
+                                    className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition shadow-sm font-bold text-sm"
+                                    title="Importar lista via JSON"
+                                >
+                                    <FileJson size={18} /> Importar JSON
+                                </button>
+                            )}
+
+                             {/* Botão Novo Item */}
+                             <button 
+                                onClick={handleNewClick}
+                                className="flex items-center gap-2 px-5 py-3 bg-brand-purple text-white rounded-xl hover:bg-purple-900 transition shadow-md font-bold text-sm uppercase"
+                            >
+                                <Plus size={18} /> Novo {activeTab === 'quotes' ? 'Frase' : activeTab === 'books' ? 'Livro' : 'Vaga'}
+                            </button>
                         </div>
                     </div>
 
@@ -292,13 +381,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                 </div>
             </div>
 
-            {/* EDIT MODAL */}
+            {/* IMPORT MODAL */}
+            {isImporting && (
+                <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+                         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                            <h3 className="text-lg font-bold text-gray-800 uppercase flex items-center gap-2">
+                                <FileJson size={18} /> Importar {activeTab === 'quotes' ? 'Frases' : 'Livros'} em Massa
+                            </h3>
+                            <button onClick={() => setIsImporting(false)} className="p-1 hover:bg-gray-200 rounded-full"><X size={20} /></button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-4">
+                                Cole abaixo uma lista em formato <strong>JSON</strong> contendo os itens que deseja adicionar.
+                            </p>
+                            <textarea 
+                                className="w-full h-64 p-4 bg-gray-50 border border-gray-300 rounded-xl font-mono text-xs text-gray-700 focus:ring-2 focus:ring-brand-purple outline-none"
+                                placeholder={`[\n  {\n    "category": "Motivação",\n    "quote": "Sua frase aqui...",\n    "authorName": "Autor",\n    "caption": "Legenda..."\n  }\n]`}
+                                value={importJsonText}
+                                onChange={(e) => setImportJsonText(e.target.value)}
+                            />
+                        </div>
+                        <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
+                            <button 
+                                onClick={() => setIsImporting(false)}
+                                className="px-6 py-3 rounded-xl text-gray-600 font-bold hover:bg-gray-200 transition"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={executeImport}
+                                disabled={isSaving || !importJsonText}
+                                className="px-8 py-3 rounded-xl bg-brand-purple text-white font-bold hover:bg-purple-900 transition flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Upload size={18} />}
+                                {isSaving ? 'Importando...' : 'Processar Importação'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* EDIT/CREATE MODAL */}
             {editingItem && (
                 <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
                             <h3 className="text-lg font-bold text-gray-800 uppercase flex items-center gap-2">
-                                <Edit2 size={18} /> Editar {activeTab === 'quotes' ? 'Frase' : activeTab === 'books' ? 'Livro' : 'Vaga'}
+                                <Edit2 size={18} /> {editingItem.id === 'new' ? 'Criar Novo(a)' : 'Editar'} {activeTab === 'quotes' ? 'Frase' : activeTab === 'books' ? 'Livro' : 'Vaga'}
                             </h3>
                             <button onClick={() => setEditingItem(null)} className="p-1 hover:bg-gray-200 rounded-full"><X size={20} /></button>
                         </div>
@@ -383,7 +513,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                     <>
                                         <div>
                                             <label className={labelClass}>Categoria</label>
-                                            <select name="category" value={editFormData.category || ''} onChange={handleFormChange} className={inputClass}>
+                                            <select name="category" value={editFormData.category || 'Inspiração'} onChange={handleFormChange} className={inputClass}>
                                                 {QUOTE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                             </select>
                                         </div>
@@ -419,7 +549,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className={labelClass}>Categoria</label>
-                                                <select name="category" value={editFormData.category || ''} onChange={handleFormChange} className={inputClass}>
+                                                <select name="category" value={editFormData.category || 'Desenvolvimento'} onChange={handleFormChange} className={inputClass}>
                                                     {BOOK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
                                             </div>
@@ -513,7 +643,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                 className="px-8 py-3 rounded-xl bg-brand-purple text-white font-bold hover:bg-purple-900 transition flex items-center gap-2 disabled:opacity-50 shadow-lg"
                             >
                                 {isSaving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save size={18} />}
-                                {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+                                {isSaving ? 'Salvando...' : 'Salvar'}
                             </button>
                         </div>
                     </div>

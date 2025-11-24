@@ -276,10 +276,16 @@ export const dbService = {
      await supabase.from('quotes').delete().eq('id', id);
   },
 
-  getRandomQuote: async (category?: QuoteCategory): Promise<QuoteData | null> => {
+  getRandomQuote: async (category?: string): Promise<QuoteData | null> => {
     let query = supabase.from('quotes').select('*');
-    if (category) query = query.eq('category', category);
     
+    // Se a categoria for passada e NÃO for "Todos", filtra. 
+    // Se for "Todos" ou vazia, traz qualquer um.
+    if (category && category !== 'Todos') {
+        query = query.eq('category', category);
+    }
+    
+    // Traz até 100 itens para escolher um aleatório
     const { data, error } = await query.limit(100);
     
     if (error || !data || data.length === 0) return null;
@@ -384,9 +390,13 @@ export const dbService = {
      await supabase.from('books').delete().eq('id', id);
   },
 
-  getRandomBook: async (category?: BookCategory): Promise<BookData | null> => {
+  getRandomBook: async (category?: string): Promise<BookData | null> => {
     let query = supabase.from('books').select('*');
-    if (category) query = query.eq('category', category);
+    
+    // Lógica para 'Todos'
+    if (category && category !== 'Todos') {
+        query = query.eq('category', category);
+    }
     
     const { data, error } = await query.limit(100);
     

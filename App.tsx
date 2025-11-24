@@ -28,7 +28,6 @@ export default function App() {
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSaving, setIsSaving] = useState(false); 
-  const [isSeeding, setIsSeeding] = useState(false);
   const [isLoadingRandom, setIsLoadingRandom] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
@@ -196,7 +195,7 @@ export default function App() {
                 setQuoteData(prev => ({ ...prev, ...randomQuote }));
                 setQuoteFile(null);
                 showFeedback(`Frase de "${randomQuote.category}" carregada!`);
-            } else alert('Nenhuma frase encontrada nesta categoria no Banco.');
+            } else alert('Nenhuma frase encontrada no Banco.');
         } else if (mode === 'book') {
             const randomBook = await dbService.getRandomBook(bookData.category);
             if (randomBook) {
@@ -207,7 +206,7 @@ export default function App() {
                 setBookData(prev => ({ ...prev, ...randomBook }));
                 setBookFile(null);
                 showFeedback(`Dica de "${randomBook.category}" carregada!`);
-            } else alert('Nenhum livro encontrado nesta categoria no Banco.');
+            } else alert('Nenhum livro encontrado no Banco.');
         } else {
              alert('Geração aleatória de vagas não implementada (use a Biblioteca).');
         }
@@ -255,21 +254,6 @@ export default function App() {
         setIsSaving(false);
     }
   };
-
-  const handleSeedDatabase = async () => {
-      if(!confirm("Isso enviará cerca de 100 itens (Frases e Livros) para o seu banco de dados Supabase. Pode levar alguns segundos. Continuar?")) return;
-      setIsSeeding(true);
-      try {
-          const msg = await dbService.seedDatabase();
-          showFeedback('Banco populado com sucesso!');
-          alert(msg);
-      } catch (error) {
-          console.error(error);
-          alert("Erro ao popular banco.");
-      } finally {
-          setIsSeeding(false);
-      }
-  }
 
   const inputClass = "w-full px-5 h-[54px] bg-gray-50 border border-gray-200 rounded-[2rem] focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none text-sm font-medium text-gray-700 transition-all placeholder-gray-400 flex items-center";
   const textAreaClass = "w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-[2rem] focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple outline-none text-sm font-medium text-gray-700 transition-all placeholder-gray-400 min-h-[120px] resize-none";
@@ -352,9 +336,10 @@ export default function App() {
                         <select 
                             name="category" 
                             value={mode === 'quote' ? quoteData.category : bookData.category}
-                            onChange={(e) => mode === 'quote' ? setQuoteData(p => ({...p, category: e.target.value as QuoteCategory})) : setBookData(p => ({...p, category: e.target.value as BookCategory}))}
+                            onChange={(e) => mode === 'quote' ? setQuoteData(p => ({...p, category: e.target.value as any})) : setBookData(p => ({...p, category: e.target.value as any}))}
                             className={selectClass}
                         >
+                            <option value="Todos">Todos (Qualquer Categoria)</option>
                             {mode === 'quote' 
                             ? QUOTE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)
                             : BOOK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)
@@ -384,17 +369,6 @@ export default function App() {
                          <Database size={14} /> Biblioteca
                      </button>
                  </div>
-
-                 {/* Botão de Seed Dedicado e Explícito */}
-                 <button 
-                    onClick={handleSeedDatabase}
-                    disabled={isSeeding || !isConnected}
-                    className="w-full flex items-center justify-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:text-orange-800 rounded-xl py-2 transition disabled:opacity-50 text-[10px] uppercase font-bold tracking-wider"
-                    title="Clique aqui para enviar os dados padrões para o banco"
-                 >
-                     {isSeeding ? <Loader2 className="animate-spin w-3 h-3" /> : <CloudUpload size={14} />}
-                     {isSeeding ? 'Enviando...' : 'Carregar Dados Padrão (Seed)'}
-                 </button>
              </div>
           </div>
         </div>
