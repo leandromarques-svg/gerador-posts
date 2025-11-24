@@ -105,9 +105,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
             // Recarregar lista e fechar modal
             await fetchData();
             setEditingItem(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Erro ao salvar:", error);
-            alert("Erro ao salvar alterações.");
+            // Mostrar a mensagem de erro real vinda do Supabase/Service
+            alert(`Erro ao salvar: ${error.message || 'Erro desconhecido.'}`);
         } finally {
             setIsSaving(false);
         }

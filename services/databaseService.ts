@@ -3,7 +3,7 @@ import { QuoteData, BookData, JobData, QuoteCategory, BookCategory, INITIAL_QUOT
 import { supabase } from './supabaseClient';
 import { SEED_QUOTES, SEED_BOOKS } from '../data/seedData';
 
-// Helper para limpar nome de arquivo - Remove acentos e caracteres especiais agressivamente
+// Helper para limpar nome de arquivo - Mais robusto
 const sanitizeFileName = (name: string) => {
     return name
         .normalize('NFD')
@@ -13,8 +13,10 @@ const sanitizeFileName = (name: string) => {
         .toLowerCase();
 };
 
-// Helper para garantir que authorImageOffset existe ao inserir
-const defaultOffset = { x: 0, y: 0 };
+// Helper para obter extensão segura
+const getFileExtension = (filename: string) => {
+    return filename.includes('.') ? filename.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg';
+};
 
 export const dbService = {
   
@@ -40,7 +42,7 @@ export const dbService = {
                   social_handle: q.socialHandle || '@metarhconsultoria',
                   footer_logo_url: q.footerLogoUrl || null,
                   website_url: q.websiteUrl || 'www.metarh.com.br',
-                  caption: null // Seed data sem caption específica, deixa gerar auto
+                  caption: null
               });
               if (!error) addedQuotes++;
           }
@@ -105,7 +107,7 @@ export const dbService = {
 
     if (imageFile) {
         try {
-            const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+            const fileExt = getFileExtension(imageFile.name);
             const safeName = sanitizeFileName(imageFile.name.split('.')[0]);
             const fileName = `authors/${Date.now()}_${safeName}.${fileExt}`;
             
@@ -118,7 +120,7 @@ export const dbService = {
 
             if (uploadError) {
                 console.error("Supabase Storage Error:", uploadError);
-                throw new Error(`Erro ao subir imagem: ${uploadError.message}`);
+                throw new Error(`Erro ao subir imagem: ${uploadError.message} (Verifique as permissões do Bucket 'images')`);
             }
 
             const { data: publicUrlData } = supabase.storage.from('images').getPublicUrl(fileName);
@@ -134,13 +136,13 @@ export const dbService = {
         quote: data.quote,
         author_name: data.authorName,
         author_role: data.authorRole,
-        author_image: imageUrl,
+        author_image: imageUrl || null, // Ensure empty string becomes null
         author_image_offset_x: data.authorImageOffset?.x || 0,
         author_image_offset_y: data.authorImageOffset?.y || 0,
         social_handle: data.socialHandle,
-        footer_logo_url: data.footerLogoUrl,
+        footer_logo_url: data.footerLogoUrl || null,
         website_url: data.websiteUrl,
-        caption: data.caption
+        caption: data.caption || null
     };
 
     let result;
@@ -157,9 +159,9 @@ export const dbService = {
     return {
         ...data,
         id: result.id,
-        authorImage: result.author_image,
+        authorImage: result.author_image || '',
         authorImageOffset: { x: Number(result.author_image_offset_x), y: Number(result.author_image_offset_y) },
-        caption: result.caption
+        caption: result.caption || ''
     };
   },
 
@@ -171,8 +173,6 @@ export const dbService = {
     let query = supabase.from('quotes').select('*');
     if (category) query = query.eq('category', category);
     
-    // Random trick for PostgreSQL/Supabase often requires Extensions or fetching logic
-    // Simplified: fetch random limit
     const { data, error } = await query.limit(100);
     
     if (error || !data || data.length === 0) return null;
@@ -222,7 +222,7 @@ export const dbService = {
 
     if (coverFile) {
         try {
-            const fileExt = coverFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+            const fileExt = getFileExtension(coverFile.name);
             const safeName = sanitizeFileName(coverFile.name.split('.')[0]);
             const fileName = `books/${Date.now()}_${safeName}.${fileExt}`;
             
@@ -250,11 +250,11 @@ export const dbService = {
         category: data.category,
         book_title: data.bookTitle,
         book_author: data.bookAuthor,
-        cover_image: coverUrl,
+        cover_image: coverUrl || null,
         review: data.review,
         social_handle: data.socialHandle,
-        footer_logo_url: data.footerLogoUrl,
-        caption: data.caption
+        footer_logo_url: data.footerLogoUrl || null,
+        caption: data.caption || null
     };
 
     let result;
@@ -268,12 +268,11 @@ export const dbService = {
         result = inserted;
     }
 
-    // Retorna dados atualizados, fallback para os dados de entrada se a resposta do DB for parcial
     return { 
         ...data, 
         id: result?.id || data.id, 
-        coverImage: result?.cover_image || coverUrl,
-        caption: result?.caption
+        coverImage: result?.cover_image || coverUrl || '',
+        caption: result?.caption || ''
     };
   },
 
@@ -334,7 +333,7 @@ export const dbService = {
 
     if (imageFile) {
         try {
-            const fileExt = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+            const fileExt = getFileExtension(imageFile.name);
             const safeName = sanitizeFileName(imageFile.name.split('.')[0]);
             const fileName = `jobs/${Date.now()}_${safeName}.${fileExt}`;
             
@@ -366,10 +365,10 @@ export const dbService = {
         contract_type: data.contractType,
         modality: data.modality,
         location: data.location,
-        image_url: imageUrl,
-        footer_logo_url: data.footerLogoUrl,
+        image_url: imageUrl || null,
+        footer_logo_url: data.footerLogoUrl || null,
         website_url: data.websiteUrl,
-        caption: data.caption
+        caption: data.caption || null
     };
 
     let result;
@@ -386,8 +385,8 @@ export const dbService = {
     return { 
         ...data, 
         id: result?.id || data.id, 
-        imageUrl: result?.image_url || imageUrl,
-        caption: result?.caption
+        imageUrl: result?.image_url || imageUrl || '',
+        caption: result?.caption || ''
     };
   },
 
