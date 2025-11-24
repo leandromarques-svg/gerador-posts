@@ -3,7 +3,7 @@ import { QuoteData, BookData, JobData, QuoteCategory, BookCategory, INITIAL_QUOT
 import { supabase } from './supabaseClient';
 import { SEED_QUOTES, SEED_BOOKS } from '../data/seedData';
 
-// Helper para limpar nome de arquivo - Mais robusto
+// Helper para limpar nome de arquivo
 const sanitizeFileName = (name: string) => {
     return name
         .normalize('NFD')
@@ -13,14 +13,74 @@ const sanitizeFileName = (name: string) => {
         .toLowerCase();
 };
 
+// --- OTIMIZAÇÃO DE IMAGEM ---
+// Redimensiona para no máx 500px de altura (conforme solicitado) e comprime para JPEG 80%
+const resizeImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                // CONFIGURAÇÃO DE TAMANHO (Solicitado: Altura Máxima 500px)
+                const MAX_HEIGHT = 500;
+                const MAX_WIDTH = 1000; // Limite de segurança para largura
+
+                let width = img.width;
+                let height = img.height;
+
+                // 1. Redimensionar pela Altura (Prioridade)
+                if (height > MAX_HEIGHT) {
+                    width = Math.round(width * (MAX_HEIGHT / height));
+                    height = MAX_HEIGHT;
+                }
+
+                // 2. Se a largura ainda for muito grande (ex: imagem panorâmica), reduz pela largura
+                if (width > MAX_WIDTH) {
+                    height = Math.round(height * (MAX_WIDTH / width));
+                    width = MAX_WIDTH;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve(file); // Fallback: retorna original se falhar canvas
+                    return;
+                }
+                
+                // Desenha imagem redimensionada
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Converte para Blob JPEG com qualidade 0.8 (80%)
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        // Cria novo arquivo com extensão .jpg fixada
+                        const newName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                        const optimizedFile = new File([blob], newName, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now(),
+                        });
+                        resolve(optimizedFile);
+                    } else {
+                        resolve(file); // Fallback
+                    }
+                }, 'image/jpeg', 0.8);
+            };
+            img.onerror = (err) => resolve(file); // Fallback em erro de load
+        };
+        reader.onerror = (err) => resolve(file); // Fallback em erro de leitura
+    });
+};
+
 // Helper para obter extensão segura
 const getFileExtension = (filename: string) => {
     return filename.includes('.') ? filename.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg';
 };
 
 // Helper INTELIGENTE para escrita no banco
-// Tenta salvar com todos os campos. Se der erro de coluna inexistente (ex: caption),
-// remove o campo problemático e tenta de novo.
 const safeSupabaseWrite = async (table: string, payload: any, id?: string) => {
     const currentPayload = { ...payload };
     
@@ -45,10 +105,7 @@ const safeSupabaseWrite = async (table: string, payload: any, id?: string) => {
 
     if (isColumnError) {
         console.warn(`[Auto-Fix] A tabela '${table}' não tem a coluna 'caption'. Salvando sem ela.`);
-        
-        // Remove o campo caption e tenta novamente
         delete currentPayload.caption;
-        
         const retry = await executeQuery(currentPayload);
         data = retry.data;
         error = retry.error;
@@ -85,7 +142,6 @@ export const dbService = {
                   caption: null
               };
 
-              // Usamos safeSupabaseWrite mesmo no seed para evitar crash
               try {
                   await safeSupabaseWrite('quotes', payload);
                   addedQuotes++;
@@ -160,15 +216,19 @@ export const dbService = {
 
     if (imageFile) {
         try {
-            const fileExt = getFileExtension(imageFile.name);
+            // OTIMIZAÇÃO: Redimensiona e comprime antes de enviar
+            const optimizedFile = await resizeImage(imageFile);
+            
+            // Força a extensão .jpg pois o otimizador converte para jpeg
             const safeName = sanitizeFileName(imageFile.name.split('.')[0]);
-            const fileName = `authors/${Date.now()}_${safeName}.${fileExt}`;
+            const fileName = `authors/${Date.now()}_${safeName}.jpg`;
             
             const { error: uploadError } = await supabase.storage
                 .from('images') 
-                .upload(fileName, imageFile, { 
+                .upload(fileName, optimizedFile, { 
                     cacheControl: '3600', 
-                    upsert: true 
+                    upsert: true,
+                    contentType: 'image/jpeg'
                 });
 
             if (uploadError) {
@@ -192,7 +252,7 @@ export const dbService = {
         quote: data.quote,
         author_name: data.authorName,
         author_role: data.authorRole,
-        author_image: imageUrl || null, // Ensure empty string becomes null
+        author_image: imageUrl || null, 
         author_image_offset_x: data.authorImageOffset?.x || 0,
         author_image_offset_y: data.authorImageOffset?.y || 0,
         social_handle: data.socialHandle,
@@ -269,15 +329,18 @@ export const dbService = {
 
     if (coverFile) {
         try {
-            const fileExt = getFileExtension(coverFile.name);
+            // OTIMIZAÇÃO
+            const optimizedFile = await resizeImage(coverFile);
+
             const safeName = sanitizeFileName(coverFile.name.split('.')[0]);
-            const fileName = `books/${Date.now()}_${safeName}.${fileExt}`;
+            const fileName = `books/${Date.now()}_${safeName}.jpg`;
             
             const { error: uploadError } = await supabase.storage
                 .from('images')
-                .upload(fileName, coverFile, { 
+                .upload(fileName, optimizedFile, { 
                     cacheControl: '3600', 
-                    upsert: true 
+                    upsert: true,
+                    contentType: 'image/jpeg'
                 });
 
             if (uploadError) {
@@ -374,15 +437,18 @@ export const dbService = {
 
     if (imageFile) {
         try {
-            const fileExt = getFileExtension(imageFile.name);
+            // OTIMIZAÇÃO
+            const optimizedFile = await resizeImage(imageFile);
+
             const safeName = sanitizeFileName(imageFile.name.split('.')[0]);
-            const fileName = `jobs/${Date.now()}_${safeName}.${fileExt}`;
+            const fileName = `jobs/${Date.now()}_${safeName}.jpg`;
             
             const { error: uploadError } = await supabase.storage
                 .from('images')
-                .upload(fileName, imageFile, { 
+                .upload(fileName, optimizedFile, { 
                     cacheControl: '3600', 
-                    upsert: true 
+                    upsert: true,
+                    contentType: 'image/jpeg'
                 });
 
             if (uploadError) {
