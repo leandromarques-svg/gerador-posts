@@ -75,9 +75,9 @@ export default function App() {
 
   const generateCaptionText = () => {
       if (mode === 'quote') {
-          return `✨ Dose diária de ${quoteData.category.toLowerCase()} para você!\n\n"${quoteData.quote.replace(/\*/g, '')}"\n— ${quoteData.authorName}\n\nO que essa frase desperta em você hoje? Conta pra gente nos comentários! 👇\n\n#METARH #DesenvolvimentoHumano #${quoteData.category.replace(/\s+/g, '')} #Inspiração`;
+          return `✨ Dose diária de ${quoteData.category === 'Todos' ? 'Inspiração' : quoteData.category.toLowerCase()} para você!\n\n"${quoteData.quote.replace(/\*/g, '')}"\n— ${quoteData.authorName}\n\nO que essa frase desperta em você hoje? Conta pra gente nos comentários! 👇\n\n#METARH #DesenvolvimentoHumano #${quoteData.category !== 'Todos' ? quoteData.category.replace(/\s+/g, '') : 'Inspiração'} #Inspiração`;
       } else if (mode === 'book') {
-          return `📚 Dica de Leitura: ${bookData.bookTitle}\n\n${bookData.review.replace(/\*/g, '')}\n\nUma obra incrível de ${bookData.bookAuthor} para quem busca evoluir em ${bookData.category}.\n\nVocê já leu ou tem vontade de ler esse livro? 🤓\n\n#METARH #DicaDeLeitura #${bookData.category.replace(/\s+/g, '')} #Conhecimento`;
+          return `📚 Dica de Leitura: ${bookData.bookTitle}\n\n${bookData.review.replace(/\*/g, '')}\n\nUma obra incrível de ${bookData.bookAuthor} para quem busca evoluir em ${bookData.category === 'Todos' ? 'Desenvolvimento' : bookData.category}.\n\nVocê já leu ou tem vontade de ler esse livro? 🤓\n\n#METARH #DicaDeLeitura #${bookData.category !== 'Todos' ? bookData.category.replace(/\s+/g, '') : 'Leitura'} #Conhecimento`;
       } else {
           return `🚀 Oportunidade na METARH!\n\nEstamos buscando: ${jobData.jobTitle}\n\n🔹 Local: ${jobData.location}\n🔹 Modelo: ${jobData.modality} | ${jobData.contractType}\n\n💡 ${jobData.tagline}\n\nSe você se identifica com nosso propósito, venha fazer parte do time! \n\n👉 Candidate-se em: ${jobData.websiteUrl}\nOu clique no link da bio!\n\n#Vagas #Oportunidade #${jobData.sector.replace(/\s+/g, '')} #METARH #Carreira`;
       }
@@ -184,20 +184,19 @@ export default function App() {
     setIsLoadingRandom(true);
     try {
         if (mode === 'quote') {
-            const randomQuote = await dbService.getRandomQuote(quoteData.category);
+            const randomQuote = await dbService.getRandomQuote(quoteData.category === 'Todos' ? undefined : quoteData.category);
             if (randomQuote) {
                 // Ao carregar do banco, verificamos se tem legenda salva
-                // Se tiver, usamos e bloqueamos a geração automática
                 if (randomQuote.caption) {
                     skipCaptionGeneration.current = true;
                     setCaptionText(randomQuote.caption);
                 }
                 setQuoteData(prev => ({ ...prev, ...randomQuote }));
                 setQuoteFile(null);
-                showFeedback(`Frase de "${randomQuote.category}" carregada!`);
+                showFeedback(`Frase carregada!`);
             } else alert('Nenhuma frase encontrada no Banco.');
         } else if (mode === 'book') {
-            const randomBook = await dbService.getRandomBook(bookData.category);
+            const randomBook = await dbService.getRandomBook(bookData.category === 'Todos' ? undefined : bookData.category);
             if (randomBook) {
                 if (randomBook.caption) {
                     skipCaptionGeneration.current = true;
@@ -205,7 +204,7 @@ export default function App() {
                 }
                 setBookData(prev => ({ ...prev, ...randomBook }));
                 setBookFile(null);
-                showFeedback(`Dica de "${randomBook.category}" carregada!`);
+                showFeedback(`Dica carregada!`);
             } else alert('Nenhum livro encontrado no Banco.');
         } else {
              alert('Geração aleatória de vagas não implementada (use a Biblioteca).');

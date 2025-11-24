@@ -84,18 +84,28 @@ export const QuoteCard = forwardRef<HTMLDivElement, QuoteCardProps>(({ data, sca
   useLayoutEffect(() => {
     const el = textRef.current;
     if (!el) return;
-    const MAX_FONT_SIZE = 59; 
+    
+    // Configurações ajustadas para permitir fonte maior
+    const MAX_FONT_SIZE = 72; // Aumentado para começar grande
+    const MIN_FONT_SIZE = 25; // Limite mínimo de segurança
     const LINE_HEIGHT = 1.1; 
-    const MAX_LINES = 4;
+    const MAX_LINES = 4; // Limite estrito de linhas
+
     let currentSize = MAX_FONT_SIZE;
     el.style.fontSize = `${currentSize}px`;
     el.style.lineHeight = `${LINE_HEIGHT}`;
 
-    const exceedsLimit = (size: number) => {
-        return el.scrollHeight > (size * LINE_HEIGHT * MAX_LINES) + 5;
+    // Função que calcula a altura permitida para N linhas com a fonte atual
+    const getMaxHeight = (fontSize: number) => {
+        // Altura = Tamanho * LineHeight * Linhas + Pequena Margem de Segurança (10px)
+        return (fontSize * LINE_HEIGHT * MAX_LINES) + 10;
     };
 
-    while (exceedsLimit(currentSize) && currentSize > 20) {
+    // Reduz a fonte APENAS se o conteúdo real (scrollHeight) exceder a altura de 4 linhas
+    while (
+        el.scrollHeight > getMaxHeight(currentSize) && 
+        currentSize > MIN_FONT_SIZE
+    ) {
         currentSize -= 1;
         el.style.fontSize = `${currentSize}px`;
     }
@@ -208,7 +218,7 @@ export const QuoteCard = forwardRef<HTMLDivElement, QuoteCardProps>(({ data, sca
             className="absolute flex flex-col items-center z-30"
             style={{
                 top: '306px',
-                width: '700px',
+                width: '900px', // Aumentado para 900px para permitir mais texto por linha
                 left: '50%',
                 transform: 'translateX(-50%)'
             }}
@@ -217,7 +227,7 @@ export const QuoteCard = forwardRef<HTMLDivElement, QuoteCardProps>(({ data, sca
                 ref={textRef}
                 text={data.quote} 
                 className="font-sans font-normal text-black text-center transition-all duration-200 w-full break-words"
-                style={{ fontSize: '59px', lineHeight: '1.1' }}
+                style={{ fontSize: '72px', lineHeight: '1.1' }}
              />
              
              <div className="mt-[50px] bg-brand-pink rounded-full px-8 py-3 shadow-md inline-block transform hover:scale-105 transition-transform">
